@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'route_results_screen.dart';
+import '../services/deep_link_service.dart';
 
 class HomePlannerScreen extends StatefulWidget {
   const HomePlannerScreen({super.key});
@@ -11,6 +13,57 @@ class HomePlannerScreen extends StatefulWidget {
 class _HomePlannerScreenState extends State<HomePlannerScreen> {
   final _originController = TextEditingController();
   final _destinationController = TextEditingController();
+  final DeepLinkService _deepLinkService = DeepLinkService();
+
+  @override
+  void initState() {
+    super.initState();
+    _deepLinkService.onRendezvousRequest = _handleIncomingRendezvous;
+    _deepLinkService.init();
+  }
+
+  @override
+  void dispose() {
+    _deepLinkService.dispose();
+    super.dispose();
+  }
+
+  void _handleIncomingRendezvous(String origin, String destination, String driverLocation) {
+    // Show a loading indicator while navigating
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('מחשב מסלול חבירה לנוסע...', textDirection: TextDirection.rtl),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Future.delayed(const Duration(seconds: 1), () {
+      Navigator.pop(context); // Close dialog
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RouteResultsScreen(
+            origin: origin,
+            destination: destination,
+            driverLocation: driverLocation, // Pass driver location
+          ),
+        ),
+      );
+    });
+  }
 
   void _calculateRoute() {
     final origin = _originController.text.trim();
@@ -35,6 +88,24 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
         ),
       ),
     );
+  }
+
+  void _shareRendezvousLink() {
+    final origin = _originController.text.trim();
+    final destination = _destinationController.text.trim();
+
+    if (origin.isEmpty || destination.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('הזן מוצא ויעד לפני בקשת איסוף.', textAlign: TextAlign.right),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final link = 'trempapp://rendezvous?origin=${Uri.encodeComponent(origin)}&destination=${Uri.encodeComponent(destination)}';
+    Share.share('היי! אשמח אם תוכל לאסוף אותי. לחץ על הקישור כדי שהאפליקציה תחשב לנו את נקודת המפגש האידיאלית:\n\n$link');
   }
 
   @override
@@ -172,6 +243,32 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Rendezvous Share Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _shareRendezvousLink,
+                          icon: const Icon(Icons.share_rounded, color: Color(0xFF2E3192)),
+                          label: const Text(
+                            'בקש איסוף מחבר',
+                            style: TextStyle(
+                              color: Color(0xFF2E3192),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: const BorderSide(color: Color(0xFF2E3192), width: 2),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
                         ),

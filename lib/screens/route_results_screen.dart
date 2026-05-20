@@ -6,11 +6,13 @@ import '../widgets/mapbox_placeholder.dart';
 class RouteResultsScreen extends StatefulWidget {
   final String origin;
   final String destination;
+  final String? driverLocation;
 
   const RouteResultsScreen({
     super.key,
     required this.origin,
     required this.destination,
+    this.driverLocation,
   });
 
   @override
@@ -21,15 +23,28 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
   final RoutingEngine _routingEngine = RoutingEngine();
   List<TripRoute> _routes = [];
   bool _isLoading = true;
+  late int _tabsCount;
 
   @override
   void initState() {
     super.initState();
+    _tabsCount = widget.driverLocation != null ? 5 : 4;
     _fetchRoutes();
   }
 
   Future<void> _fetchRoutes() async {
     final routes = await _routingEngine.calculateRoutes(widget.origin, widget.destination);
+    
+    if (widget.driverLocation != null) {
+      final rendezvous = await _routingEngine.calculateRendezvousRoute(
+        widget.origin, 
+        widget.destination, 
+        widget.driverLocation!
+      );
+      // Insert at the beginning so it's the first tab shown
+      routes.insert(0, rendezvous);
+    }
+
     setState(() {
       _routes = routes;
       _isLoading = false;
@@ -38,10 +53,11 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
 
   TripRoute? _getRouteByType(String type) {
     if (_routes.isEmpty) return null;
-    return _routes.firstWhere(
-      (r) => r.routeType == type,
-      orElse: () => _routes.first,
-    );
+    try {
+      return _routes.firstWhere((r) => r.routeType == type);
+    } catch (e) {
+      return null; // Return null if not found (e.g. rendezvous is not requested)
+    }
   }
 
   @override
@@ -49,7 +65,7 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: DefaultTabController(
-        length: 4,
+        length: _tabsCount,
         child: Scaffold(
           appBar: AppBar(
             title: Text('${widget.origin} ➔ ${widget.destination}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
@@ -57,17 +73,19 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
             backgroundColor: const Color(0xFF2E3192),
             foregroundColor: Colors.white,
             elevation: 0,
-            bottom: const TabBar(
+            bottom: TabBar(
               isScrollable: true,
-              indicatorColor: Color(0xFF1BFFFF),
+              indicatorColor: const Color(0xFF1BFFFF),
               indicatorWeight: 4,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white60,
               tabs: [
-                Tab(icon: Icon(Icons.star_rounded), text: 'מומלץ'),
-                Tab(icon: Icon(Icons.alt_route_rounded), text: 'משולב'),
-                Tab(icon: Icon(Icons.directions_bus_rounded), text: 'רק תחב״צ'),
-                Tab(icon: Icon(Icons.thumb_up_rounded), text: 'רק טרמפים'),
+                if (widget.driverLocation != null)
+                  const Tab(icon: Icon(Icons.handshake_rounded), text: 'איסוף משולב'),
+                const Tab(icon: Icon(Icons.star_rounded), text: 'מומלץ'),
+                const Tab(icon: Icon(Icons.alt_route_rounded), text: 'משולב'),
+                const Tab(icon: Icon(Icons.directions_bus_rounded), text: 'רק תחב״צ'),
+                const Tab(icon: Icon(Icons.thumb_up_rounded), text: 'רק טרמפים'),
               ],
             ),
           ),
@@ -75,16 +93,15 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
               ? _buildLoadingState()
               : Column(
                   children: [
-                    // The Mapbox Infrastructure Placeholder
                     const Padding(
                       padding: EdgeInsets.all(12.0),
-                      child: MapboxPlaceholder(height: 200),
+                      child: MapboxPlaceholder(height: 180),
                     ),
-                    
-                    // The Tabs Content
                     Expanded(
                       child: TabBarView(
                         children: [
+                          if (widget.driverLocation != null)
+                            _buildYGraphTab(_getRouteByType('rendezvous')),
                           _buildRouteTab(_getRouteByType('recommended')),
                           _buildRouteTab(_getRouteByType('hybrid')),
                           _buildRouteTab(_getRouteByType('only_transit')),
@@ -107,11 +124,115 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
           CircularProgressIndicator(color: Color(0xFF2E3192)),
           SizedBox(height: 16),
           Text(
-            'מחשב את הדרכים הטובות ביותר...',
+            'מחשב מסלולים ומיקומים...',
             style: TextStyle(fontSize: 16, color: Colors.black54),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildYGraphTab(TripRoute? route) {
+    if (route == null) return const Center(child: Text('שגיאה בטעינת החבירה'));
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      children: [
+        Card(
+          elevation: 0,
+          color: Colors.green[50],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.green[200]!)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.green[600], size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'נמצאה נקודת חבירה אופטימלית עם זמן המתנה משוער של כ-${route.driverSegments?.first.description.split(': ').last.split(' ').first ?? '0'} דקות!',
+                    style: TextStyle(color: Colors.green[900], fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        
+        // The Y-Graph Visualization
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Passenger side
+            Expanded(
+              child: Column(
+                children: [
+                  const Text('מסלול הנוסע', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                  const SizedBox(height: 12),
+                  ...?route.passengerSegments?.map((s) => _buildCompactSegment(s, Colors.blue)),
+                ],
+              ),
+            ),
+            
+            // Middle Divider
+            Container(width: 2, height: 100, color: Colors.grey[300], margin: const EdgeInsets.symmetric(horizontal: 8)),
+            
+            // Driver side
+            Expanded(
+              child: Column(
+                children: [
+                  const Text('מסלול הנהג', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple)),
+                  const SizedBox(height: 12),
+                  ...?route.driverSegments?.map((s) => _buildCompactSegment(s, Colors.purple)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        
+        // Rendezvous Point
+        Center(
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E3192),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.handshake_rounded, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Text('נקודת החבירה', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              Container(width: 2, height: 20, color: Colors.grey[400]),
+            ],
+          ),
+        ),
+
+        // Shared Path
+        const Center(child: Text('המסלול המשותף', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange))),
+        const SizedBox(height: 12),
+        ...route.sharedSegments.map((s) => _buildSegmentItem(s)),
+      ],
+    );
+  }
+
+  Widget _buildCompactSegment(RouteSegment segment, Color color) {
+    return Column(
+      children: [
+        Icon(Icons.location_on, color: color, size: 16),
+        Text(segment.origin, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        Container(width: 2, height: 20, color: color.withValues(alpha: 0.3)),
+        Text('${segment.duration.inMinutes} דק׳', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+        Container(width: 2, height: 20, color: color.withValues(alpha: 0.3)),
+      ],
     );
   }
 
@@ -121,7 +242,6 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       children: [
-        // Route Summary Card
         Card(
           elevation: 0,
           color: Colors.blueGrey[50],
@@ -138,13 +258,14 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
             ),
           ),
         ),
-        
         const SizedBox(height: 16),
         const Text('פירוט המסלול:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
-
-        // Route Segments Timeline
-        ...route.segments.map((segment) => _buildSegmentItem(segment)),
+        
+        // Render all existing passenger/driver segments if any, then shared segments
+        ...?route.passengerSegments?.map((s) => _buildSegmentItem(s)),
+        ...?route.driverSegments?.map((s) => _buildSegmentItem(s)),
+        ...route.sharedSegments.map((s) => _buildSegmentItem(s)),
       ],
     );
   }
@@ -180,6 +301,10 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
         typeIcon = Icons.thumb_up_rounded;
         typeColor = Colors.green;
         break;
+      case TransitType.car:
+        typeIcon = Icons.directions_car_rounded;
+        typeColor = Colors.purple;
+        break;
     }
 
     return Padding(
@@ -187,7 +312,6 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Timeline indicator
           Column(
             children: [
               Container(
@@ -206,7 +330,6 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
             ],
           ),
           const SizedBox(width: 16),
-          // Segment Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

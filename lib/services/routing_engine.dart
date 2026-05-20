@@ -1,18 +1,12 @@
 import '../models/trip_route.dart';
 
 class RoutingEngine {
-  // Singleton pattern
   static final RoutingEngine _instance = RoutingEngine._internal();
   factory RoutingEngine() => _instance;
   RoutingEngine._internal();
 
   Future<List<TripRoute>> calculateRoutes(String origin, String destination) async {
-    // Simulate network calculation delay
-    await Future.delayed(const Duration(seconds: 2));
-
-    // For demonstration, we generate 4 hardcoded dynamic-like routes
-    // based on the requested origin and destination.
-
+    await Future.delayed(const Duration(seconds: 1));
     return [
       _buildOnlyTransitRoute(origin, destination),
       _buildHybridRoute(origin, destination),
@@ -21,19 +15,64 @@ class RoutingEngine {
     ];
   }
 
+  // New Rendezvous Algorithm (Mock Spatial Query)
+  Future<TripRoute> calculateRendezvousRoute(String origin, String destination, String driverLocation) async {
+    await Future.delayed(const Duration(seconds: 2));
+
+    // Simulated Graph-Y calculations
+    final passengerDurationToSpot = const Duration(minutes: 18);
+    final driverDurationToSpot = const Duration(minutes: 20);
+    final delta = (passengerDurationToSpot.inMinutes - driverDurationToSpot.inMinutes).abs();
+
+    return TripRoute(
+      id: 'r_rendezvous',
+      routeType: 'rendezvous',
+      title: 'איסוף משולב',
+      totalCost: 0,
+      passengerSegments: [
+        RouteSegment(
+          type: TransitType.bus,
+          origin: origin,
+          destination: 'צומת חבירה - כביש החוף',
+          duration: passengerDurationToSpot,
+          description: 'נסיעה באוטובוס לצומת החבירה',
+        )
+      ],
+      driverSegments: [
+        RouteSegment(
+          type: TransitType.car,
+          origin: driverLocation,
+          destination: 'צומת חבירה - כביש החוף',
+          duration: driverDurationToSpot,
+          description: 'נסיעת הנהג (דלתא המתנה בצומת: $delta דקות)',
+        )
+      ],
+      sharedSegments: [
+        RouteSegment(
+          type: TransitType.car,
+          origin: 'צומת חבירה - כביש החוף',
+          destination: destination,
+          duration: const Duration(minutes: 40),
+          description: 'נסיעה משותפת עד ליעד הסופי',
+          reliabilityScore: 100,
+        )
+      ],
+    );
+  }
+
   TripRoute _buildOnlyTransitRoute(String origin, String destination) {
     return TripRoute(
       id: 'r1',
       routeType: 'only_transit',
       title: 'רק תחב״צ',
       totalCost: 22,
-      segments: [
+      sharedSegments: [
         RouteSegment(
           type: TransitType.walk,
           origin: origin,
           destination: 'תחנה מרכזית $origin',
           duration: const Duration(minutes: 10),
-          description: 'הליכה קצרה לתחנה המרכזית',
+          description: 'הליכה קצרה לתחנה',
         ),
         RouteSegment(
           type: TransitType.bus,
@@ -41,13 +80,6 @@ class RoutingEngine {
           destination: 'תחנה מרכזית $destination',
           duration: const Duration(minutes: 90),
           description: 'קו 480 ישיר למרכז',
-        ),
-        RouteSegment(
-          type: TransitType.walk,
-          origin: 'תחנה מרכזית $destination',
-          destination: destination,
-          duration: const Duration(minutes: 5),
-          description: 'הליכה ליעד',
         ),
       ],
     );
@@ -57,30 +89,23 @@ class RoutingEngine {
     return TripRoute(
       id: 'r2',
       routeType: 'hybrid',
-      title: 'תחב״צ + טרמפים',
+      title: 'משולב',
       totalCost: 12,
-      segments: [
+      sharedSegments: [
         RouteSegment(
           type: TransitType.bus,
           origin: origin,
           destination: 'צומת מרכזית בדרך',
           duration: const Duration(minutes: 30),
-          description: 'קו אקספרס עד לצומת הראשית',
+          description: 'קו אקספרס עד לצומת',
         ),
         RouteSegment(
           type: TransitType.hitchhike,
           origin: 'צומת מרכזית בדרך',
-          destination: 'צומת בכניסה ל-$destination',
-          duration: const Duration(minutes: 45),
-          description: 'טרמפיאדה מבוקשת עם המון חיילים',
-          reliabilityScore: 88,
-        ),
-        RouteSegment(
-          type: TransitType.walk,
-          origin: 'צומת בכניסה ל-$destination',
           destination: destination,
-          duration: const Duration(minutes: 15),
-          description: 'הליכה נעימה עד ליעד',
+          duration: const Duration(minutes: 45),
+          description: 'טרמפיאדה מבוקשת',
+          reliabilityScore: 88,
         ),
       ],
     );
@@ -90,30 +115,23 @@ class RoutingEngine {
     return TripRoute(
       id: 'r3',
       routeType: 'recommended',
-      title: 'הדרך המומלצת',
+      title: 'מומלץ',
       totalCost: 5,
-      segments: [
+      sharedSegments: [
         RouteSegment(
           type: TransitType.walk,
           origin: origin,
-          destination: 'טרמפיאדה צפונית $origin',
+          destination: 'טרמפיאדה צפונית',
           duration: const Duration(minutes: 8),
-          description: 'הליכה לטרמפיאדה הקרובה (מוצלת בקיץ)',
+          description: 'הליכה לטרמפיאדה',
         ),
         RouteSegment(
           type: TransitType.hitchhike,
-          origin: 'טרמפיאדה צפונית $origin',
-          destination: 'תחנת רכבת ב-$destination',
-          duration: const Duration(minutes: 60),
-          description: 'טרמפ מהיר על כביש 6 (סיכוי גבוה לרכב פרטי)',
-          reliabilityScore: 95,
-        ),
-        RouteSegment(
-          type: TransitType.train,
-          origin: 'תחנת רכבת ב-$destination',
+          origin: 'טרמפיאדה צפונית',
           destination: destination,
-          duration: const Duration(minutes: 15),
-          description: 'רכבת ליעד הסופי במרכז העיר',
+          duration: const Duration(minutes: 60),
+          description: 'טרמפ מהיר (סיכוי גבוה)',
+          reliabilityScore: 95,
         ),
       ],
     );
@@ -125,22 +143,14 @@ class RoutingEngine {
       routeType: 'only_hitchhike',
       title: 'רק טרמפים',
       totalCost: 0,
-      segments: [
+      sharedSegments: [
         RouteSegment(
           type: TransitType.hitchhike,
           origin: 'יציאה מ-$origin',
-          destination: 'צומת מעבר (אמצע הדרך)',
-          duration: const Duration(minutes: 40),
-          description: 'טרמפיאדה פחות עמוסה, זמן המתנה משוער: 15 דק׳',
+          destination: destination,
+          duration: const Duration(minutes: 90),
+          description: 'המתנה בצומת',
           reliabilityScore: 65,
-        ),
-        RouteSegment(
-          type: TransitType.hitchhike,
-          origin: 'צומת מעבר (אמצע הדרך)',
-          destination: 'כניסה ל-$destination',
-          duration: const Duration(minutes: 50),
-          description: 'תחנת דלק בדרך, הרבה נהגים עוצרים כאן',
-          reliabilityScore: 82,
         ),
       ],
     );

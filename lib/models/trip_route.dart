@@ -1,4 +1,4 @@
-enum TransitType { bus, train, walk, hitchhike }
+enum TransitType { bus, train, walk, hitchhike, car }
 
 class RouteSegment {
   final TransitType type;
@@ -6,7 +6,7 @@ class RouteSegment {
   final String destination;
   final Duration duration;
   final String description;
-  final int? reliabilityScore; // Brooms Score (1-100) for hitchhiking
+  final int? reliabilityScore;
 
   RouteSegment({
     required this.type,
@@ -27,35 +27,58 @@ class RouteSegment {
         return 'הליכה';
       case TransitType.hitchhike:
         return 'טרמפ';
+      case TransitType.car:
+        return 'רכב פרטי';
     }
   }
 }
 
 class TripRoute {
   final String id;
-  final String routeType; // 'only_transit', 'hybrid', 'recommended', 'only_hitchhike'
+  final String routeType; 
   final String title;
-  final List<RouteSegment> segments;
+  
+  // Breaking Change from User Request: Splitting to Y-Graph
+  final List<RouteSegment>? passengerSegments;
+  final List<RouteSegment>? driverSegments;
+  final List<RouteSegment> sharedSegments;
+  
   final int totalCost;
 
   TripRoute({
     required this.id,
     required this.routeType,
     required this.title,
-    required this.segments,
+    this.passengerSegments,
+    this.driverSegments,
+    required this.sharedSegments,
     this.totalCost = 0,
   });
 
   Duration get totalDuration {
-    return segments.fold(
+    final passengerDuration = passengerSegments?.fold(
+      const Duration(),
+      (previousValue, segment) => previousValue + segment.duration,
+    ) ?? const Duration();
+
+    // The shared duration happens after the rendezvous
+    final sharedDuration = sharedSegments.fold(
       const Duration(),
       (previousValue, segment) => previousValue + segment.duration,
     );
+
+    return passengerDuration + sharedDuration;
   }
 
   int get averageReliabilityScore {
-    final hitchhikeSegments = segments.where((s) => s.type == TransitType.hitchhike).toList();
-    if (hitchhikeSegments.isEmpty) return 100; // Transit is considered 100% reliable
+    final allSegments = [
+      ...?passengerSegments,
+      ...?driverSegments,
+      ...sharedSegments,
+    ];
+    final hitchhikeSegments = allSegments.where((s) => s.type == TransitType.hitchhike).toList();
+    
+    if (hitchhikeSegments.isEmpty) return 100;
     
     final totalScore = hitchhikeSegments.fold<int>(
       0,
