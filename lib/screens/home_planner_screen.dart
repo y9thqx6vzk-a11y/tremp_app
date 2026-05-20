@@ -15,6 +15,11 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
   final _destinationController = TextEditingController();
   final DeepLinkService _deepLinkService = DeepLinkService();
 
+  static const List<String> _israeliCities = [
+    'תל אביב', 'ירושלים', 'חיפה', 'באר שבע', 'ראשון לציון',
+    'אשדוד', 'פתח תקווה', 'נתניה', 'אילת', 'טבריה', 'הרצליה'
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -29,7 +34,6 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
   }
 
   void _handleIncomingRendezvous(String origin, String destination, String driverLocation) {
-    // Show a loading indicator while navigating
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -51,14 +55,14 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
     );
 
     Future.delayed(const Duration(seconds: 1), () {
-      Navigator.pop(context); // Close dialog
+      Navigator.pop(context);
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => RouteResultsScreen(
             origin: origin,
             destination: destination,
-            driverLocation: driverLocation, // Pass driver location
+            driverLocation: driverLocation,
           ),
         ),
       );
@@ -108,6 +112,49 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
     Share.share('היי! אשמח אם תוכל לאסוף אותי. לחץ על הקישור כדי שהאפליקציה תחשב לנו את נקודת המפגש האידיאלית:\n\n$link');
   }
 
+  Widget _buildAutocompleteField({
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+    required Color iconColor,
+  }) {
+    return Autocomplete<String>(
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<String>.empty();
+        }
+        return _israeliCities.where((String option) {
+          return option.contains(textEditingValue.text);
+        });
+      },
+      onSelected: (String selection) {
+        controller.text = selection;
+      },
+      fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController,
+          FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
+        // Sync local controller with Autocomplete's internal controller
+        fieldTextEditingController.addListener(() {
+          controller.text = fieldTextEditingController.text;
+        });
+
+        return TextField(
+          controller: fieldTextEditingController,
+          focusNode: fieldFocusNode,
+          decoration: InputDecoration(
+            hintText: hintText,
+            prefixIcon: Icon(icon, color: iconColor),
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -118,7 +165,6 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Beautiful Header
               Container(
                 height: 300,
                 decoration: const BoxDecoration(
@@ -163,7 +209,6 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                 ),
               ),
 
-              // Search Box
               Transform.translate(
                 offset: const Offset(0, -40),
                 child: Container(
@@ -182,24 +227,15 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                   ),
                   child: Column(
                     children: [
-                      // Origin Input
-                      TextField(
+                      _buildAutocompleteField(
                         controller: _originController,
-                        decoration: InputDecoration(
-                          hintText: 'נקודת מוצא (למשל: תל אביב)',
-                          prefixIcon: const Icon(Icons.my_location_rounded, color: Colors.blue),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
+                        hintText: 'נקודת מוצא (למשל: תל אביב)',
+                        icon: Icons.my_location_rounded,
+                        iconColor: Colors.blue,
                       ),
                       
                       const SizedBox(height: 16),
                       
-                      // Swap Button (Visual only for now)
                       Container(
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 12),
@@ -208,24 +244,15 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                       
                       const SizedBox(height: 8),
                       
-                      // Destination Input
-                      TextField(
+                      _buildAutocompleteField(
                         controller: _destinationController,
-                        decoration: InputDecoration(
-                          hintText: 'יעד (למשל: ירושלים)',
-                          prefixIcon: const Icon(Icons.place_rounded, color: Colors.red),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
+                        hintText: 'יעד (למשל: ירושלים)',
+                        icon: Icons.place_rounded,
+                        iconColor: Colors.red,
                       ),
 
                       const SizedBox(height: 32),
 
-                      // Submit Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -250,7 +277,6 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                       
                       const SizedBox(height: 16),
                       
-                      // Rendezvous Share Button
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(

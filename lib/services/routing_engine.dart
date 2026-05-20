@@ -1,10 +1,24 @@
 import '../models/trip_route.dart';
 
-class RoutingEngine {
-  static final RoutingEngine _instance = RoutingEngine._internal();
-  factory RoutingEngine() => _instance;
-  RoutingEngine._internal();
+abstract class RoutingEngine {
+  Future<List<TripRoute>> calculateRoutes(String origin, String destination);
+  Future<TripRoute> calculateRendezvousRoute(String origin, String destination, String driverLocation);
+}
 
+class RealRoutingEngine implements RoutingEngine {
+  @override
+  Future<List<TripRoute>> calculateRoutes(String origin, String destination) {
+    throw UnimplementedError('Real routing API not implemented yet.');
+  }
+
+  @override
+  Future<TripRoute> calculateRendezvousRoute(String origin, String destination, String driverLocation) {
+    throw UnimplementedError('Real rendezvous calculation not implemented yet.');
+  }
+}
+
+class MockRoutingEngine implements RoutingEngine {
+  @override
   Future<List<TripRoute>> calculateRoutes(String origin, String destination) async {
     await Future.delayed(const Duration(seconds: 1));
     return [
@@ -15,11 +29,10 @@ class RoutingEngine {
     ];
   }
 
-  // New Rendezvous Algorithm (Mock Spatial Query)
+  @override
   Future<TripRoute> calculateRendezvousRoute(String origin, String destination, String driverLocation) async {
     await Future.delayed(const Duration(seconds: 2));
 
-    // Simulated Graph-Y calculations
     final passengerDurationToSpot = const Duration(minutes: 18);
     final driverDurationToSpot = const Duration(minutes: 20);
     final delta = (passengerDurationToSpot.inMinutes - driverDurationToSpot.inMinutes).abs();

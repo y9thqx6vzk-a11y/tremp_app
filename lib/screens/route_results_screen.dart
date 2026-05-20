@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/trip_route.dart';
 import '../services/routing_engine.dart';
 import '../widgets/mapbox_placeholder.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../main.dart';
 
 class RouteResultsScreen extends StatefulWidget {
   final String origin;
@@ -20,7 +22,7 @@ class RouteResultsScreen extends StatefulWidget {
 }
 
 class _RouteResultsScreenState extends State<RouteResultsScreen> {
-  final RoutingEngine _routingEngine = RoutingEngine();
+  final RoutingEngine _routingEngine = getIt<RoutingEngine>();
   List<TripRoute> _routes = [];
   bool _isLoading = true;
   late int _tabsCount;
@@ -93,9 +95,16 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
               ? _buildLoadingState()
               : Column(
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.all(12.0),
-                      child: MapboxPlaceholder(height: 180),
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: (dotenv.env['MAPBOX_ACCESS_TOKEN']?.isNotEmpty ?? false)
+                          ? Container(
+                              height: 180,
+                              color: Colors.blueGrey,
+                              alignment: Alignment.center,
+                              child: const Text('Real Mapbox View Active', style: TextStyle(color: Colors.white)),
+                            )
+                          : const MapboxPlaceholder(height: 180),
                     ),
                     Expanded(
                       child: TabBarView(

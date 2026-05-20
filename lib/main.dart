@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:get_it/get_it.dart';
 import 'screens/home_planner_screen.dart';
+import 'services/routing_engine.dart';
+import 'services/database_repository.dart';
+
+final getIt = GetIt.instance;
+const bool isDemoMode = true;
+
+void setupLocator() {
+  if (isDemoMode) {
+    getIt.registerLazySingleton<RoutingEngine>(() => MockRoutingEngine());
+    getIt.registerLazySingleton<DatabaseRepository>(() => MockDatabaseRepository());
+  } else {
+    getIt.registerLazySingleton<RoutingEngine>(() => RealRoutingEngine());
+    getIt.registerLazySingleton<DatabaseRepository>(() => SupabaseDatabaseRepository());
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
+  setupLocator();
   runApp(const TrempApp());
 }
 
@@ -22,7 +41,7 @@ class TrempApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('he', 'IL'), // Hebrew for RTL support
+        Locale('he', 'IL'),
       ],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E3192)),
