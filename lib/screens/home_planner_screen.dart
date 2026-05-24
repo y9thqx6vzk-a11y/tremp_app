@@ -132,14 +132,10 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
       },
       fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController,
           FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
-        // Sync local controller with Autocomplete's internal controller
-        fieldTextEditingController.addListener(() {
-          controller.text = fieldTextEditingController.text;
-        });
-
         return TextField(
           controller: fieldTextEditingController,
           focusNode: fieldFocusNode,
+          onChanged: (text) => controller.text = text,
           decoration: InputDecoration(
             hintText: hintText,
             prefixIcon: Icon(icon, color: iconColor),
