@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'route_results_screen.dart';
-import '../services/deep_link_service.dart';
+import '../../data/services/deep_link_service.dart';
+import '../providers/geocoding_provider.dart';
 
-class HomePlannerScreen extends StatefulWidget {
+class HomePlannerScreen extends ConsumerStatefulWidget {
   const HomePlannerScreen({super.key});
 
   @override
-  State<HomePlannerScreen> createState() => _HomePlannerScreenState();
+  ConsumerState<HomePlannerScreen> createState() => _HomePlannerScreenState();
 }
 
-class _HomePlannerScreenState extends State<HomePlannerScreen> {
+class _HomePlannerScreenState extends ConsumerState<HomePlannerScreen> {
   final _originController = TextEditingController();
   final _destinationController = TextEditingController();
   final DeepLinkService _deepLinkService = DeepLinkService();
-
-  static const List<String> _israeliCities = [
-    'תל אביב', 'ירושלים', 'חיפה', 'באר שבע', 'ראשון לציון',
-    'אשדוד', 'פתח תקווה', 'נתניה', 'אילת', 'טבריה', 'הרצליה'
-  ];
 
   @override
   void initState() {
@@ -119,13 +116,19 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
     required Color iconColor,
   }) {
     return Autocomplete<String>(
-      optionsBuilder: (TextEditingValue textEditingValue) {
+      optionsBuilder: (TextEditingValue textEditingValue) async {
         if (textEditingValue.text.isEmpty) {
           return const Iterable<String>.empty();
         }
-        return _israeliCities.where((String option) {
-          return option.contains(textEditingValue.text);
-        });
+        // Debouncing
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        try {
+          final results = await ref.read(geocodingServiceProvider).searchAddress(textEditingValue.text);
+          return results.map((r) => r.displayName);
+        } catch (e) {
+          return const Iterable<String>.empty();
+        }
       },
       onSelected: (String selection) {
         controller.text = selection;
@@ -183,12 +186,18 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                       children: const [
                         Icon(Icons.alt_route_rounded, size: 48, color: Colors.white),
                         SizedBox(height: 16),
-                        Text(
-                          'לאן ניסע היום?',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
+                        Hero(
+                          tag: 'title_hero',
+                          child: Material(
+                            color: Colors.transparent,
+                            child: Text(
+                              'לאן ניסע היום?',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                         SizedBox(height: 8),

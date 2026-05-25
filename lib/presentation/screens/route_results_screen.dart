@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import '../models/trip_route.dart';
-import '../services/routing_engine.dart';
-import '../widgets/mapbox_placeholder.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import '../main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../domain/models/trip_route.dart';
+import '../providers/route_provider.dart';
+import '../widgets/map_view_widget.dart';
 
-class RouteResultsScreen extends StatefulWidget {
+class RouteResultsScreen extends ConsumerStatefulWidget {
   final String origin;
   final String destination;
   final String? driverLocation;
@@ -18,59 +17,50 @@ class RouteResultsScreen extends StatefulWidget {
   });
 
   @override
-  State<RouteResultsScreen> createState() => _RouteResultsScreenState();
+  ConsumerState<RouteResultsScreen> createState() => _RouteResultsScreenState();
 }
 
-class _RouteResultsScreenState extends State<RouteResultsScreen> {
-  final RoutingEngine _routingEngine = getIt<RoutingEngine>();
-  List<TripRoute> _routes = [];
-  bool _isLoading = true;
+class _RouteResultsScreenState extends ConsumerState<RouteResultsScreen> {
   late int _tabsCount;
 
   @override
   void initState() {
     super.initState();
     _tabsCount = widget.driverLocation != null ? 5 : 4;
-    _fetchRoutes();
   }
 
-  Future<void> _fetchRoutes() async {
-    final routes = await _routingEngine.calculateRoutes(widget.origin, widget.destination);
-    
-    if (widget.driverLocation != null) {
-      final rendezvous = await _routingEngine.calculateRendezvousRoute(
-        widget.origin, 
-        widget.destination, 
-        widget.driverLocation!
-      );
-      // Insert at the beginning so it's the first tab shown
-      routes.insert(0, rendezvous);
-    }
-
-    setState(() {
-      _routes = routes;
-      _isLoading = false;
-    });
-  }
-
-  TripRoute? _getRouteByType(String type) {
-    if (_routes.isEmpty) return null;
+  TripRoute? _getRouteByType(List<TripRoute> routes, String type) {
+    if (routes.isEmpty) return null;
     try {
-      return _routes.firstWhere((r) => r.routeType == type);
+      return routes.firstWhere((r) => r.routeType == type);
     } catch (e) {
-      return null; // Return null if not found (e.g. rendezvous is not requested)
+      return null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final routesAsyncValue = ref.watch(routesProvider(RouteRequest(
+      origin: widget.origin,
+      destination: widget.destination,
+      driverLocation: widget.driverLocation,
+    )));
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: DefaultTabController(
         length: _tabsCount,
         child: Scaffold(
           appBar: AppBar(
-            title: Text('${widget.origin} ➔ ${widget.destination}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            title: Hero(
+              tag: 'title_hero',
+              child: Material(
+                color: Colors.transparent,
+                child: Text('${widget.origin} ➔ ${widget.destination}', 
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
+                ),
+              ),
+            ),
             centerTitle: true,
             backgroundColor: const Color(0xFF2E3192),
             foregroundColor: Colors.white,
@@ -91,35 +81,30 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
               ],
             ),
           ),
-          body: _isLoading
-              ? _buildLoadingState()
-              : Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: (dotenv.env['MAPBOX_ACCESS_TOKEN']?.isNotEmpty ?? false)
-                          ? Container(
-                              height: 180,
-                              color: Colors.blueGrey,
-                              alignment: Alignment.center,
-                              child: const Text('Real Mapbox View Active', style: TextStyle(color: Colors.white)),
-                            )
-                          : const MapboxPlaceholder(height: 180),
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          if (widget.driverLocation != null)
-                            _buildYGraphTab(_getRouteByType('rendezvous')),
-                          _buildRouteTab(_getRouteByType('recommended')),
-                          _buildRouteTab(_getRouteByType('hybrid')),
-                          _buildRouteTab(_getRouteByType('only_transit')),
-                          _buildRouteTab(_getRouteByType('only_hitchhike')),
-                        ],
-                      ),
-                    ),
-                  ],
+          body: routesAsyncValue.when(
+            loading: () => _buildLoadingState(),
+            error: (err, stack) => Center(child: Text('שגיאה: $err')),
+            data: (routes) => Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: const MapViewWidget(height: 180),
                 ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      if (widget.driverLocation != null)
+                        _buildYGraphTab(_getRouteByType(routes, 'rendezvous')),
+                      _buildRouteTab(_getRouteByType(routes, 'recommended')),
+                      _buildRouteTab(_getRouteByType(routes, 'hybrid')),
+                      _buildRouteTab(_getRouteByType(routes, 'only_transit')),
+                      _buildRouteTab(_getRouteByType(routes, 'only_hitchhike')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

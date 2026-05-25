@@ -1,4 +1,5 @@
-import '../models/hitchhiking_spot.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../domain/models/hitchhiking_spot.dart';
 
 abstract class DatabaseRepository {
   Future<List<HitchhikingSpot>> getHitchhikingSpots();
@@ -42,11 +43,22 @@ class MockDatabaseRepository implements DatabaseRepository {
 }
 
 class SupabaseDatabaseRepository implements DatabaseRepository {
-  // final SupabaseClient _client;
-  // SupabaseDatabaseRepository(this._client);
+  final SupabaseClient _client = Supabase.instance.client;
 
   @override
-  Future<List<HitchhikingSpot>> getHitchhikingSpots() {
-    throw UnimplementedError('Real Supabase query not implemented yet.');
+  Future<List<HitchhikingSpot>> getHitchhikingSpots() async {
+    try {
+      final response = await _client.from('hitchhiking_spots').select();
+      return (response as List<dynamic>).map((json) => HitchhikingSpot(
+        id: json['id'].toString(),
+        name: json['name'],
+        latitude: double.tryParse(json['latitude'].toString()) ?? 0.0,
+        longitude: double.tryParse(json['longitude'].toString()) ?? 0.0,
+        broomsScore: json['brooms_score'] ?? 0,
+      )).toList();
+    } catch (e) {
+      // Fallback or error handling
+      return [];
+    }
   }
 }
